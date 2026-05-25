@@ -27,6 +27,12 @@ def get_optional(name: str, default: str = "") -> str:
 
 XAI_API_KEY = lambda: get_required("XAI_API_KEY")
 PERPLEXITY_API_KEY = lambda: get_required("PERPLEXITY_API_KEY")
+DEEPSEEK_API_KEY = lambda: get_required("DEEPSEEK_API_KEY")
+DEEPSEEK_MODEL = get_optional("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_REASONER_MODEL = get_optional("DEEPSEEK_REASONER_MODEL", "deepseek-reasoner")
+NCBI_EMAIL = lambda: get_required("NCBI_EMAIL")
+PUBMED_API_KEY = lambda: get_optional("PUBMED_API_KEY", "")
+SEMANTIC_SCHOLAR_API_KEY = lambda: get_optional("SEMANTIC_SCHOLAR_API_KEY", "")
 GEMINI_API_KEY = lambda: get_required("GEMINI_API_KEY")
 YOUTUBE_API_KEY = lambda: get_optional("YOUTUBE_API_KEY", "")
 
