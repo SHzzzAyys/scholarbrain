@@ -15,6 +15,9 @@ MAX_RETRIES = 3
 BACKOFF_SECONDS = (1, 3, 8)
 ESUMMARY_BATCH = 200
 
+DIRECT_SESSION = requests.Session()
+DIRECT_SESSION.trust_env = False
+
 
 def _ua() -> dict[str, str]:
     return {"User-Agent": f"{TOOL}/0.1 (mailto:{NCBI_EMAIL()})"}
@@ -28,7 +31,8 @@ def _get(url: str, params: dict[str, Any]) -> requests.Response:
     last_err: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            r = requests.get(url, params=params, headers=_ua(), timeout=60)
+            # Bypass system proxies; NCBI should direct-connect for reliability.
+            r = DIRECT_SESSION.get(url, params=params, headers=_ua(), timeout=60)
             if r.status_code == 200:
                 return r
             if r.status_code == 429:

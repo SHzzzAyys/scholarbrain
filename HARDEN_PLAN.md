@@ -302,6 +302,7 @@ Refs: HARDEN_PLAN.md tasks 1.1-1.5, 1.7"
 - **上游 rebase 大爆炸**: 上游 2026-05 还在快速迭代，本 fork 改 `research_deep.py` 一旦上游同区域大改，冲突可能 1 天起步。**对策**: PR1（Backend 抽象）越早合上游越好；合不上就接受每周末 2-4 小时 rebase 成本。
 - **paper_extractor 六模块迁移耦合**: paper_extractor 当前是 PyQt6 桌面工具，prompt + JSON schema 是核心可复用资产，但 UI 层要剥离；v0.2 拆分时只搬 `core/extractor.py` 与 `core/prompts.py`，不搬 UI。
 - **MinerU / Docling 解析慢**: Docling 26 页 ~87 秒、MinerU 更慢；v0.4 必须做后台队列 + PushGate 完成通知，不能阻塞 vault 写入。
+- **系统代理穿透学术 API**: `requests` 可能自动读取 Windows 系统代理（如 `127.0.0.1:1088`），导致 PubMed/arXiv 慢或失败；`lib/pubmed.py` 和 `lib/arxiv.py` 必须用 `Session.trust_env = False` 直连，详见 `TROUBLESHOOTING.md`。
 - **⭐ 数 KPI 不一定能达**: 中文科研工具受众分散在微信/小红书/知乎，X / GitHub ⭐ 转化率低；如 v0.5 后 30 天 ⭐ < 20，KPI 5 调整为"真实安装用户 ≥ 30"。
 
 ---

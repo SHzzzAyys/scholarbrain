@@ -13,6 +13,9 @@ MAX_RETRIES = 3
 BACKOFF_SECONDS = (1, 3, 8)
 POLITE_SLEEP = 3  # arXiv asks >= 3s between requests
 
+DIRECT_SESSION = requests.Session()
+DIRECT_SESSION.trust_env = False
+
 
 def _strip_version(arxiv_id_url: str) -> str:
     tail = arxiv_id_url.rstrip("/").rsplit("/", 1)[-1]
@@ -43,7 +46,8 @@ def call(query: str, *, max_results: int = 10, category: str | None = None) -> d
     for attempt in range(MAX_RETRIES):
         try:
             print(f"[arXiv] query: {query!r} (cat={category}, max={max_results})", file=sys.stderr)
-            r = requests.get(url, headers=headers, timeout=60)
+            # Bypass system proxies; arXiv should direct-connect for reliability.
+            r = DIRECT_SESSION.get(url, headers=headers, timeout=60)
             if r.status_code == 200:
                 resp_text = r.text
                 succeeded = True

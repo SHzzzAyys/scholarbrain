@@ -3,9 +3,9 @@
 
 Flow (per design decision C):
 1. Vault scan: find existing notes on this topic (baseline knowledge).
-2. Identify gaps: areas vault is silent on or stale about.
-3. Targeted research: Perplexity (web) + Grok (X discourse) to fill gaps.
-4. Synthesize: delta vs baseline, flag contradictions, recency markers.
+2. Identify gaps: areas vault is silent on or stale about (DeepSeek LLM).
+3. Targeted research: routed by query source — perplexity/pubmed/arxiv/x — to fill gaps.
+4. Synthesize: delta vs baseline, flag contradictions, recency markers (DeepSeek reasoner).
 5. Write the synthesized note to Research/Deep/ (deterministic, this script).
 6. Emit a JSON block telling the calling Claude to run /obsidian-save for cross-vault propagation.
 """
@@ -15,7 +15,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from .lib import perplexity, grok, vault
+from .lib import perplexity, grok, deepseek, pubmed, arxiv, vault
 from .lib.config import VAULT_PATH
 
 VAULT_SCAN_DIRS = ["wiki", "Research", "Knowledge", "Projects", "Ideas"]
@@ -70,7 +70,9 @@ TODAY: {today}
 EXISTING VAULT NOTES ON THIS TOPIC:
 {baseline}
 
-Output EXACTLY this structure (markdown), nothing else:
+Output EXACTLY this structure (markdown), nothing else.
+
+LANGUAGE RULE: If the TOPIC is written in Chinese, output the entire response in Chinese (each gap/claim ≤ 40 字). Otherwise output in English. Do not mix languages within one response.
 
 ## Vault Baseline Summary
 [3-5 sentences summarizing what the vault currently knows about this topic. Be specific. If the vault is empty on this topic, say so directly.]
@@ -86,12 +88,24 @@ Output EXACTLY this structure (markdown), nothing else:
 
 ## Targeted Research Queries
 List 3-5 SPECIFIC search queries that would fill the gaps above. Format each on its own line as: `query | source`
-where source is one of `web` (for Perplexity) or `x` (for Grok+X). Examples:
+where source is one of:
+  `web`     — general web (Perplexity), non-academic claims, news, market data
+  `pubmed`  — biomedical/clinical/pharma literature (NCBI)
+  `arxiv`   — preprints in CS / physics / math / quantitative biology
+  `x`       — X/Twitter community discourse, sentiment, breaking news
+Pick the source matching the topic's epistemic domain. Prefer pubmed/arxiv for scientific claims; reserve web for non-academic context; reserve x for community pulse.
+
+Examples:
 - "Anthropic Claude memory tool 2026 features" | web
+- "GLP-1 agonists cardiovascular outcomes 2025 meta-analysis" | pubmed
+- "mixture-of-experts inference latency reduction 2025" | arxiv
 - "developers reaction to Mem0 Series A" | x
 
 End with one final line: "READY".
 """
+
+
+ALLOWED_SOURCES = ("web", "pubmed", "arxiv", "x")
 
 
 def parse_queries(gap_text: str) -> list[tuple[str, str]]:
@@ -99,8 +113,8 @@ def parse_queries(gap_text: str) -> list[tuple[str, str]]:
     for line in gap_text.splitlines():
         line = line.strip().lstrip("-").strip()
         if "|" in line and not line.startswith("#") and "READY" not in line:
-            parts = [p.strip().strip('"').strip("'") for p in line.split("|")]
-            if len(parts) >= 2 and parts[1].lower() in ("web", "x"):
+            parts = [p.strip().strip("`").strip('"').strip("'") for p in line.split("|")]
+            if len(parts) >= 2 and parts[1].lower() in ALLOWED_SOURCES:
                 queries.append((parts[0], parts[1].lower()))
     return queries[:5]
 
@@ -163,10 +177,11 @@ def main(argv: list[str]) -> int:
     baseline = load_baseline(hits)
     print(f"[/research-deep] Found {len(hits)} relevant vault notes.", file=sys.stderr)
 
-    print(f"[/research-deep] Phase 2: identifying gaps via Perplexity (sonar-pro, fast)...", file=sys.stderr)
+    print(f"[/research-deep] Phase 2: identifying gaps via DeepSeek (deepseek-chat)...", file=sys.stderr)
     gap_prompt = GAP_PROMPT.format(topic=topic, today=today, baseline=baseline)
     try:
-        gap_result = perplexity.call(gap_prompt, deep=False, max_tokens=2000)
+        # max_tokens=8000 enforced by deepseek.call default (paper_extractor known issue).
+        gap_result = deepseek.call(gap_prompt)
     except Exception as e:
         print(f"❌ Phase 2 (gap analysis) failed: {e}", file=sys.stderr)
         return 1
@@ -181,8 +196,11 @@ def main(argv: list[str]) -> int:
     for q, src in queries:
         try:
             if src == "web":
-                print(f"  [web] {q}", file=sys.stderr)
-                r = perplexity.call(f"Research this question: {q}\n\nReturn 3-5 specific facts with recency markers (date) and source domain. Be concise.", deep=False, max_tokens=1200)
+                print(f"  [web]    {q}", file=sys.stderr)
+                r = perplexity.call(
+                    f"Research this question: {q}\n\nReturn 3-5 specific facts with recency markers (date) and source domain. Be concise.",
+                    deep=False, max_tokens=1200,
+                )
                 findings_chunks.append(f"### Web — {q}\n\n{r['text']}")
                 for c in r.get("citations", []):
                     if isinstance(c, dict):
@@ -191,8 +209,27 @@ def main(argv: list[str]) -> int:
                             sources_collected.append(url)
                     elif isinstance(c, str):
                         sources_collected.append(c)
-            else:
-                print(f"  [x]   {q}", file=sys.stderr)
+
+            elif src == "pubmed":
+                print(f"  [pubmed] {q}", file=sys.stderr)
+                r = pubmed.call(q, max_results=8)
+                findings_chunks.append(f"### PubMed — {q}\n\n{r['text']}")
+                for c in r.get("citations", []):
+                    url = c.get("url", "")
+                    if url:
+                        sources_collected.append(url)
+
+            elif src == "arxiv":
+                print(f"  [arxiv]  {q}", file=sys.stderr)
+                r = arxiv.call(q, max_results=8)
+                findings_chunks.append(f"### arXiv — {q}\n\n{r['text']}")
+                for c in r.get("citations", []):
+                    url = c.get("url", "")
+                    if url:
+                        sources_collected.append(url)
+
+            elif src == "x":
+                print(f"  [x]      {q}", file=sys.stderr)
                 r = grok.call(
                     f"On X right now, what are people saying about: {q}\n\nReturn 3-5 specific posts/voices with @ handles and post URLs. No commentary outside that.",
                     command="research-deep",
@@ -200,13 +237,18 @@ def main(argv: list[str]) -> int:
                     max_output_tokens=1200,
                 )
                 findings_chunks.append(f"### X — {q}\n\n{r['text']}")
+
+            else:
+                findings_chunks.append(f"### {src} — {q}\n\n[SKIPPED: unknown source {src!r}]")
+                print(f"  ⚠️  unknown source: {src!r}", file=sys.stderr)
+
         except Exception as e:
             findings_chunks.append(f"### {src} — {q}\n\n[FAILED: {e}]")
             print(f"  ⚠️  {src} query failed: {e}", file=sys.stderr)
 
     findings = "\n\n".join(findings_chunks) if findings_chunks else "(no findings — all targeted queries failed)"
 
-    print(f"[/research-deep] Phase 4: synthesizing delta vs vault baseline...", file=sys.stderr)
+    print(f"[/research-deep] Phase 4: synthesizing delta via DeepSeek reasoner...", file=sys.stderr)
     synth_prompt = SYNTHESIS_PROMPT.format(
         topic=topic,
         today=today,
@@ -214,9 +256,10 @@ def main(argv: list[str]) -> int:
         findings=findings,
     )
     try:
-        # Use sonar-reasoning-pro for synthesis (follows instructions, supports markdown structure).
-        # sonar-deep-research has a hardcoded "10k-word academic narrative" that overrides our prompt.
-        synth = perplexity.call(synth_prompt, model="sonar-reasoning-pro", max_tokens=3500)
+        # DeepSeek reasoner for synthesis: follows instructions, supports the
+        # 6-section markdown structure required by SYNTHESIS_PROMPT.
+        # max_tokens=8000 (deepseek.call default) gives room for the full delta.
+        synth = deepseek.call(synth_prompt, reasoning=True)
     except Exception as e:
         print(f"❌ Phase 4 (synthesis) failed: {e}", file=sys.stderr)
         return 1
@@ -226,10 +269,16 @@ def main(argv: list[str]) -> int:
 
     # AI-first note save (Phase 5)
     now = datetime.now()
+    queries_by_source: dict[str, int] = {}
+    for _, s in queries:
+        queries_by_source[s] = queries_by_source.get(s, 0) + 1
+    source_summary = ", ".join(f"{n} {s}" for s, n in sorted(queries_by_source.items()))
+
     preamble = (
         f"For future Claude: This is a vault-first deep research delta on \"{topic}\" "
         f"performed on {now.strftime('%Y-%m-%d %H:%M')}. The vault was scanned first ({len(hits)} relevant notes), "
-        f"gaps were identified, and {len(queries)} targeted queries filled them via Perplexity (web) + Grok (X). "
+        f"gaps were identified by DeepSeek, and {len(queries)} targeted queries filled them via "
+        f"{source_summary or 'no external sources'}. Synthesis was produced by DeepSeek reasoner. "
         f"This note focuses on WHAT'S NEW vs the vault's prior knowledge, contradictions to resolve, and recommended updates. "
         f"Cross-vault propagation should follow via /obsidian-save."
     )
