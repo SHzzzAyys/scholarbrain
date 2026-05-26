@@ -39,14 +39,29 @@ RESULT_DIRECTION_VOCAB = ["positive", "negative", "mixed", "null"]
 # null = no significant effect (distinct from negative = clear opposite evidence)
 
 METHOD_TAGS_VOCAB = [
+    # Genome perturbation
     "CRISPR-Cas9", "CRISPR-screen", "RNAi", "AID", "DiCre", "Tet-on/off",
+    "knockout", "knockdown",
+    # Sequencing (bulk + single-cell)
     "RNA-seq", "scRNA-seq", "ChIP-seq", "ATAC-seq", "Ribo-seq", "CUT&RUN",
-    "BioID/TurboID", "co-IP", "Y2H", "pull-down",
+    "Bisulfite-seq", "MeRIP-Seq", "m6A-seq", "m5C-seq",
+    # Protein-protein / RNA interaction
+    "BioID/TurboID", "co-IP", "Y2H", "pull-down", "CLIP-seq",
+    # Structural
     "X-ray crystallography", "cryo-EM", "AlphaFold",
-    "live-cell imaging", "super-resolution", "EM",
-    "flow cytometry", "mass spec", "metabolomics", "lipidomics",
+    # Imaging
+    "live-cell imaging", "super-resolution", "EM", "immunofluorescence",
+    # Profiling
+    "flow cytometry", "mass spec", "metabolomics", "lipidomics", "proteomics",
+    # Basic molecular biology (surfaced as common gaps in real extraction)
+    "qRT-PCR", "Western blot", "Northern blot", "ELISA",
+    # In vivo / in vitro models
     "mouse infection", "organoid culture", "in vitro infection",
+    # Computational / bioinformatics
     "computational modeling", "phylogenetics", "GWAS",
+    "BLAST/BLASTP", "GO/KEGG enrichment", "differential expression analysis",
+    # ML / CS (for non-bio papers using the same controlled vocab)
+    "Transformer", "self-attention", "neural network", "diffusion model",
     "other",
 ]
 
