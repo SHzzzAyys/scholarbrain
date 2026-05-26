@@ -145,9 +145,84 @@ Ran on arxiv:1706.03762 (truncated to 30k chars, fed under Toxo `_DOMAIN.md`):
 
 ### Deferred to v0.2.1 / v0.4 backlog
 
-- METHOD_TAGS_VOCAB expansion: MeRIP-Seq, qRT-PCR, Western blot, Bisulfite-seq, BLASTP, GO/KEGG, Transformer, self-attention, multi-head attention (surfaced on real test cases)
+- [x] METHOD_TAGS_VOCAB expansion 31 -> 50 tags (commit a78d814, v0.2.1)
 - Language consistency: position_in_field/novelty_type emit Chinese ("开创"), result_direction emits English ("positive"). Pick one.
 - lib/semantic_scholar.py (v0.2 Day 1 task 1.4, deferred per spec section 6)
 - DOI resolution via Unpaywall (v0.4)
 - MinerU/Docling PDF parser upgrade (v0.4)
 - cassette/VCR fixtures for real API tests (v0.5)
+
+---
+
+## 2026-05-26 - 10-paper batch + v0.2.1 fixes
+
+### Pushed to GitHub
+- Repo created: `github.com/SHzzzAyys/scholarbrain` (public, default branch
+  `feat/deepseek-pubmed-arxiv`)
+- 9 fork commits + tags v0.1.0, v0.2.0 pushed (unshallow required for first
+  push to resolve dangling object 74321375... from `git clone --depth 1`).
+
+### 10-paper batch run
+
+Ran `/research-paper` on
+`D:/ToxoVault/outputs/literature_downloads/2026-05-19_protozoa_top10/*.pdf`:
+
+| # | Paper | Time | Status |
+|---|---|---|---|
+| 01 | Alrubaye 2026 -- single-cell Toxo sexual atlas | 36.7s | OK |
+| 02 | Ulu 2026 -- bradyzoite subtypes | 25.9s | OK |
+| 03 | Tachibana 2026 -- MIC11/PLP1 egress (4.7MB) | 30.3s | **FAIL (JSON truncated)** |
+| 04 | Schwarz 2026 -- SWI/SNF complexes | 27.2s | OK |
+| 05 | Gurung 2026 -- apical polar ring Pf | 23.5s | OK |
+| 06 | Marapana 2026 -- GID/CTLH E3 ligase | 29.2s | OK |
+| 07 | Billows 2026 -- Pf population genetics | 23.0s | OK |
+| 08 | Hagedorn 2026 -- Leishmania macrophage proteomics | 22.6s | OK |
+| 09 | Sadlova 2026 -- Leishmania sand fly transporters | 22.3s | OK |
+| 10 | Carnielli 2026 -- Leishmania KKT2/CRK9 chem genetics | 25.7s | OK |
+
+9/10 OK in 4 min 26s. Card #3 succeeded on manual retry with `--max-chars 15000`.
+
+### 3 real-world findings (driving v0.2.1)
+
+1. **JSON truncation on long PDFs**: 4.7MB PDF (86550 parsed chars) at default
+   max-chars 30000 made the LLM JSON exceed DeepSeek's 8k max_tokens, leaving
+   `_raw_json` mid-token. v0.2.1 fix: `_looks_truncated()` detector + auto-retry
+   with halved max-chars.
+
+2. **result_direction biased toward 'positive'**: All 12 cards (10 new + 2
+   prior) came out `positive`. High-IF journals are biased that way but LLM
+   was also defaulting too aggressively. v0.2.1 fix: TASK_PROMPT now has
+   explicit calibration ("~30% of top-tier papers should be 'mixed'").
+
+3. **method_tags 75% controlled-vocab coverage**: 3/12 cards have `[other]` in
+   `method_tags`. Vocab is now 50 tags (was 31). Incremental expansion ongoing.
+
+### Cross-paper dataview now functional
+
+- Q1: `model_organism = "Toxoplasma gondii"` -> 5 cards
+- Q2: `contains(method_tags, "CRISPR-screen")` -> 2 cards (Alrubaye, Tachibana)
+- Q3: `contains(method_tags, "scRNA-seq")` -> 2 cards (Alrubaye, Ulu)
+- Q4 novelty_type distribution: 5 概念 / 5 数据 / 2 方法学 / 0 增量
+- Q5 position_in_field distribution: 6 开创 / 3 跟进 / 2 整合 / 1 修正
+
+INDEX.md (Obsidian dataview queries) shipped to `D:/ToxoVault/Research/Papers/INDEX.md`.
+
+### v0.2.1 deliverables (this commit)
+
+- `research_paper.py`: `_looks_truncated()` detector + auto-retry with halved max-chars
+- `paper_extract.py`: result_direction calibration in TASK_PROMPT
+- `D:/ToxoVault/Research/Papers/INDEX.md`: starter dataview query page (vault, not repo)
+
+### Cumulative state (after v0.2.1)
+
+10 fork commits on `feat/deepseek-pubmed-arxiv` (after v0.1.0 tag):
+- (this commit): v0.2.1 truncation retry + result_direction calibration + INDEX
+- a78d814: vocab expansion 31 -> 50
+- 149d854: /research-paper command (v0.2.0 tagged)
+- bb61d66: pdf fetch + unified loader
+- cad2128: paper_extract.py + V02 spec
+- 6af7eb4: pushgate webhook
+- ab9bc1c: windows utf-8 + proxy bypass (v0.1.0 tagged)
+- 2521bee: zh-CN triggers
+- 4829592: research_deep academic routing
+- c30bbf0: lib/deepseek + pubmed + arxiv

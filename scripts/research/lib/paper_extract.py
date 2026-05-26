@@ -395,10 +395,19 @@ TASK_PROMPT = """请从下面的论文文本中,按六模块结构化提取信�
 原文实际涉及哪些方法就选哪些;不在表内的归 "other"。
 
 ## result_direction (单选)
-- positive: 主要结论支持作者假设/有统计显著的正向效应
-- negative: 出现明确反面证据/与作者假设相反
-- mixed: 部分结果支持、部分反对/在不同条件下表现不同
-- null: 未检测到显著效应(区别于 negative)
+
+定义:
+- positive: 几乎所有 primary_findings 的 robustness 都是"强",没有矛盾结果
+- mixed:    出现下列任一情况:
+            * 至少 1 条 primary_findings 的 robustness 是"弱"
+            * 作者承认 ≥2 条 limitations 且属于核心假设的反例
+            * 不同实验条件/模型下出现矛盾结果(如体外 OK 但体内 fail,或某一突变体反向)
+- negative: 主要假设被明确反驳/与作者预期相反
+- null:     未检测到显著效应(实验做了但 p>0.05 或 effect size 接近 0)
+
+**校准提示**: 不要默认 positive。高影响因子期刊的论文实际上 ~30% 应该是 mixed
+而不是 positive,因为顶刊也常含 caveats。如果你纠结 positive 还是 mixed,
+看一眼 primary_findings 的 robustness 分布:有"弱"或"中"就倾向 mixed。
 
 # 强制约束
 

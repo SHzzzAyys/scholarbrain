@@ -26,6 +26,26 @@ from .lib import paper_extract, pdf_load, pushgate
 from .lib.config import VAULT_PATH
 
 
+def _looks_truncated(result: paper_extract.ExtractionResult) -> bool:
+    """Detect JSON truncation from DeepSeek's 8k output cap.
+
+    Signals: _missing contains JSON_PARSE_FAILED, _raw_json has unbalanced braces,
+    or _raw_json tail ends mid-token.
+    """
+    if "JSON_PARSE_FAILED" not in result._missing:
+        return False
+    raw = (result._raw_json or "").rstrip()
+    if not raw:
+        return False
+    # Tail-character clues
+    if raw[-1] in (",", "{", "[", ":", '"'):
+        return True
+    # Unbalanced braces (more { than }) means JSON was cut off
+    if raw.count("{") > raw.count("}"):
+        return True
+    return False
+
+
 # ============================================================
 # Slug / filename helpers
 # ============================================================
@@ -283,13 +303,27 @@ def main(argv: list[str]) -> int:
         file=sys.stderr,
     )
 
-    # Phase 2: extract
+    # Phase 2: extract (with truncation auto-retry for long PDFs)
     print("[/research-paper] Phase 2: extracting via DeepSeek...", file=sys.stderr)
     result = paper_extract.extract(truncated)
 
+    # Retry path: long PDFs (eg 4.7MB / 86k chars MIC11 case) produce JSON that
+    # exceeds DeepSeek's 8k max_tokens output, leaving _raw_json mid-token. We
+    # detect this and halve the input so the JSON also halves.
+    if _looks_truncated(result) and args.max_chars > 15001:
+        retry_chars = args.max_chars // 2
+        print(
+            f"[/research-paper] JSON looks truncated (raw_json={len(result._raw_json)} chars, "
+            f"unbalanced braces); retrying with --max-chars {retry_chars}...",
+            file=sys.stderr,
+        )
+        truncated_retry = text[:retry_chars]
+        result = paper_extract.extract(truncated_retry)
+
     if "JSON_PARSE_FAILED" in result._missing:
         print(
-            f"[/research-paper] JSON parse failed. _raw_json head:\n{result._raw_json[:500]}",
+            f"[/research-paper] JSON parse failed even after retry. "
+            f"_raw_json head:\n{result._raw_json[:500]}",
             file=sys.stderr,
         )
         return 4
