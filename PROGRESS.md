@@ -67,10 +67,47 @@
 
 ### Todo for v0.2 Day 2-3
 
-- [ ] Day 2: lib/arxiv.py add download_pdf(); lib/pubmed.py add pmid_to_pmc_pdf();
-      new lib/pdf_load.py with unified entry.
-- [ ] Day 3: scripts/research/research_paper.py + commands/research-paper.md +
-      vault template Research/Papers/.
-- [ ] METHOD_TAGS_VOCAB: add 'qRT-PCR', 'Western blot', 'Bisulfite-seq'
-      (surfaced by real test on PMID 40830525).
-- [ ] Test with a real PDF (local file) once PDF parser layer is in.
+- [x] Day 2: lib/arxiv.py add download_pdf(); lib/pubmed.py add pmid_to_pmc_pdf() + fetch_by_pmid(); new lib/pdf_load.py with unified entry.
+- [ ] Day 3: scripts/research/research_paper.py + commands/research-paper.md + vault template Research/Papers/.
+- [ ] METHOD_TAGS_VOCAB: add 'qRT-PCR', 'Western blot', 'Bisulfite-seq' (surfaced on PMID 40830525); also add CS terms 'Transformer', 'self-attention', 'encoder-decoder' (surfaced on arxiv:1706.03762).
+- [x] Test with a real PDF (local file) once PDF parser layer is in.
+
+---
+
+## 2026-05-26 - v0.2 Day 2 complete (PDF fetch + unified loader)
+
+### What landed
+
+- `pyproject.toml`: added optional-dependencies `pdf = ["pymupdf>=1.24.0"]`. Install with `uv sync --extra pdf`. Keeps default install lean; fork users who skip /research-paper don't pay 18MB for pymupdf.
+- `lib/arxiv.py`: `download_pdf(arxiv_id, cache_dir=None)` -- strips version suffix, caches by base ID under `~/.cache/obsidian-second-brain/arxiv/`, content-type sanity check (rejects HTML on invalid IDs), POLITE_SLEEP=3s after success.
+- `lib/pubmed.py`:
+  - `fetch_by_pmid(pmid, fetch_abstract=True)` -- single PMID -> dict with same shape as `call()`. Used by the abstract fallback path.
+  - `pmid_to_pmc_pdf(pmid, cache_dir=None)` -- 3 steps: elink PMID->PMC ID -> OA API for PDF link -> HTTP download. Returns None silently (with stderr explanation) on any failure mode so caller falls back to abstract.
+- `lib/pdf_load.py` (new, 132 lines): `load_text(source: str)` router. Source prefixes: `arxiv:<id>`, `pmid:<id>`, `doi:<doi>` (NotImplementedError -> v0.4), or bare path. `parse_pdf()` wraps page 0 in `<FRONT_MATTER>` and pages 1+ in `<BODY>` matching paper_extract.TASK_PROMPT sectioning.
+
+### Real-world verification (Day 2.4)
+
+| Source | Result | Time |
+|---|---|---|
+| `arxiv:1706.03762` (Attention Is All You Need, 2.2 MB PDF) | downloaded + parsed 39572 chars, 11 pages | 9.5s (incl 2 SSL EOF retries) |
+| local PDF (same cached file) | text identical to arxiv route | <1s |
+| `pmid:40830525` (Toxo m5C) | PMC OA had no PDF link -> abstract fallback, 3011 chars | 4.3s |
+
+### End-to-end pdf_load + paper_extract
+
+Ran on arxiv:1706.03762 (truncated to 30k chars, fed under Toxo `_DOMAIN.md`):
+- JSON parse OK
+- `model_organism: 'in silico'` -- LLM correctly identified non-biological paper despite Toxo domain prompt
+- `method_tags: ['other']` -- LLM honored controlled vocab (no biological method matches a CS paper)
+- `result_direction: 'positive'` -- Transformer > RNN is a positive result
+- `extract` time: 21s
+
+### Cumulative state
+
+6 fork commits on `feat/deepseek-pubmed-arxiv` (after v0.1.0 tag):
+- cad2128: paper_extract.py + V02 spec (Day 1)
+- 6af7eb4: pushgate webhook (v0.3)
+- ab9bc1c: windows utf-8 + proxy bypass (v0.1.0 tagged)
+- 2521bee: zh-CN triggers
+- 4829592: research_deep academic routing
+- c30bbf0: lib/deepseek + pubmed + arxiv

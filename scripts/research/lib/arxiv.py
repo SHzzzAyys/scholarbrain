@@ -1,8 +1,10 @@
 """arXiv client via export.arxiv.org Atom API. Stdlib XML parsing, no extra deps."""
 import sys
 import time
-import requests
+from pathlib import Path
 from typing import Any
+
+import requests
 from urllib.parse import quote
 from xml.etree import ElementTree as ET
 
@@ -113,3 +115,62 @@ def call(query: str, *, max_results: int = 10, category: str | None = None) -> d
 
     text = "\n".join(lines).rstrip() if lines else f"No arXiv results for: {query}"
     return {"text": text, "citations": citations, "model": "arxiv", "raw": {"xml": resp_text}}
+
+
+# ============================================================
+# PDF download (v0.2 Day 2)
+# ============================================================
+PDF_BASE = "https://arxiv.org/pdf"
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "obsidian-second-brain" / "arxiv"
+
+
+def download_pdf(arxiv_id: str, cache_dir: Path | None = None) -> Path:
+    """Download arXiv PDF by ID. Version-suffix tolerant. Cached by base ID.
+
+    Returns the local Path. Raises RuntimeError on failure.
+
+    Respects POLITE_SLEEP after each network hit (arXiv asks >=3s between requests).
+    """
+    base_id = _strip_version(arxiv_id)
+    if cache_dir is None:
+        cache_dir = DEFAULT_CACHE_DIR
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    target = cache_dir / f"{base_id}.pdf"
+
+    # Cache hit check: file exists and is not a 0-byte stub
+    if target.exists() and target.stat().st_size > 1000:
+        print(f"[arXiv] PDF cache hit: {target} ({target.stat().st_size} bytes)", file=sys.stderr)
+        return target
+
+    url = f"{PDF_BASE}/{base_id}.pdf"
+    headers = {"User-Agent": USER_AGENT}
+    print(f"[arXiv] downloading PDF: {base_id} from {url}", file=sys.stderr)
+
+    last_err: Exception | None = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            r = DIRECT_SESSION.get(url, headers=headers, timeout=120, stream=False)
+            if r.status_code == 200:
+                # Sanity check: arXiv returns text/html for invalid IDs
+                ctype = r.headers.get("content-type", "")
+                if "pdf" not in ctype.lower() and len(r.content) < 5000:
+                    raise RuntimeError(
+                        f"arXiv PDF response not a PDF (content-type={ctype}, "
+                        f"size={len(r.content)}); is arxiv_id={base_id!r} valid?"
+                    )
+                target.write_bytes(r.content)
+                time.sleep(POLITE_SLEEP)  # arXiv politeness
+                print(f"[arXiv] PDF saved: {target} ({target.stat().st_size} bytes)", file=sys.stderr)
+                return target
+            if r.status_code in (429, 500, 502, 503, 504):
+                wait = BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)]
+                print(f"[arXiv PDF {r.status_code}, retrying in {wait}s...]", file=sys.stderr)
+                time.sleep(wait)
+                continue
+            raise RuntimeError(f"arXiv PDF download {r.status_code} for {base_id}: {r.text[:200]}")
+        except requests.RequestException as e:
+            last_err = e
+            wait = BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)]
+            print(f"[arXiv PDF network error: {e}, retrying in {wait}s...]", file=sys.stderr)
+            time.sleep(wait)
+    raise RuntimeError(f"arXiv PDF download failed after {MAX_RETRIES} retries: {last_err}")
