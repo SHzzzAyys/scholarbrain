@@ -165,6 +165,13 @@ CRITICAL FORMAT RULES — DO NOT DEVIATE:
 
 
 def main(argv: list[str]) -> int:
+    # Windows terminals default to GBK/cp936; force UTF-8 for stdout/stderr so
+    # synthesis output (which often contains en-dashes, smart quotes, CJK) prints
+    # cleanly. No-op on POSIX where stdout is already UTF-8.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure") and getattr(stream, "encoding", "").lower() != "utf-8":
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     if len(argv) < 2 or not argv[1].strip():
         print("Usage: /research-deep <topic>", file=sys.stderr)
         return 2

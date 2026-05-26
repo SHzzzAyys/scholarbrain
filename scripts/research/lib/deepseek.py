@@ -9,6 +9,11 @@ API_URL = "https://api.deepseek.com/chat/completions"
 MAX_RETRIES = 3
 BACKOFF_SECONDS = (1, 3, 8)
 
+# DeepSeek API is hosted in China; routing through a v2ray/clash proxy often
+# triggers connection resets at the proxy layer (WSAECONNABORTED 10053).
+DIRECT_SESSION = requests.Session()
+DIRECT_SESSION.trust_env = False
+
 
 def call(prompt: str, *, model: str | None = None, reasoning: bool = False, max_tokens: int = 8000) -> dict[str, Any]:
     """Call DeepSeek chat/completions. Pure LLM, no web search (citations always []).
@@ -23,7 +28,7 @@ def call(prompt: str, *, model: str | None = None, reasoning: bool = False, max_
     last_err: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            r = requests.post(API_URL, json=body, headers=headers, timeout=timeout)
+            r = DIRECT_SESSION.post(API_URL, json=body, headers=headers, timeout=timeout)
             if r.status_code == 200:
                 data = r.json()
                 text = (data["choices"][0]["message"].get("content") or "").strip()
@@ -37,6 +42,6 @@ def call(prompt: str, *, model: str | None = None, reasoning: bool = False, max_
         except requests.RequestException as e:
             last_err = e
             wait = BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)]
-            print(f"[DeepSeek network error: {e}, retrying in {wait}s...]")
+            print(f"[DeepSeek network error: {type(e).__name__}, retrying in {wait}s...]")
             time.sleep(wait)
     raise RuntimeError(f"DeepSeek API failed after {MAX_RETRIES} retries: {last_err}")

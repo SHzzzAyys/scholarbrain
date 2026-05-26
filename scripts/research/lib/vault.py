@@ -57,7 +57,9 @@ def write_note(command: str, topic: str, frontmatter: dict[str, Any], body: str)
     fm_text = "\n".join(fm_lines)
 
     full = f"{fm_text}\n\n{body.strip()}\n"
-    path.write_text(full)
+    # Force UTF-8: Windows pathlib defaults to system encoding (cp936 on zh-CN),
+    # which breaks on en-dashes, smart quotes, and CJK in synthesis output.
+    path.write_text(full, encoding="utf-8")
     return path
 
 
@@ -123,7 +125,7 @@ def append_to_log(operation_summary: str) -> None:
     log_path = VAULT_PATH / "log.md"
     date = datetime.now().strftime("%Y-%m-%d")
     entry = f"\n## [{date}] research-toolkit | {operation_summary}\n"
-    with log_path.open("a") as f:
+    with log_path.open("a", encoding="utf-8") as f:
         f.write(entry)
 
 
@@ -133,11 +135,11 @@ def append_to_daily(summary_md: str) -> bool:
     daily_path = VAULT_PATH / "wiki" / "daily" / f"{date}.md"
     if not daily_path.exists():
         return False
-    current = daily_path.read_text()
+    current = daily_path.read_text(encoding="utf-8")
     block = f"\n### Research — {datetime.now().strftime('%H:%M')}\n\n{summary_md.strip()}\n"
     if "## 🌙 Evening Review" in current:
         new = current.replace("## 🌙 Evening Review", f"{block}\n---\n\n## 🌙 Evening Review", 1)
     else:
         new = current + block
-    daily_path.write_text(new)
+    daily_path.write_text(new, encoding="utf-8")
     return True
