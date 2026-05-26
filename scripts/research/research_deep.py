@@ -15,7 +15,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from .lib import perplexity, grok, deepseek, pubmed, arxiv, vault
+from .lib import perplexity, grok, deepseek, pubmed, arxiv, pushgate, vault
 from .lib.config import VAULT_PATH
 
 VAULT_SCAN_DIRS = ["wiki", "Research", "Knowledge", "Projects", "Ideas"]
@@ -329,6 +329,22 @@ def main(argv: list[str]) -> int:
     print("<<<END_PAYLOAD>>>")
 
     vault.append_to_log(f"research-deep on \"{topic}\" — saved to {path.name}, propagation payload emitted")
+
+    # Best-effort push notification (silent no-op if PushGate not configured).
+    # Never raises: notification failure must never block the main research flow.
+    notify_title = f"📚 调研完成: {topic[:50]}"
+    relative_path = str(path.relative_to(VAULT_PATH))
+    body_excerpt = body[:800] + ("..." if len(body) > 800 else "")
+    notify_desp = (
+        f"**Topic**: {topic}\n\n"
+        f"**Saved**: `{relative_path}`\n\n"
+        f"**Vault baseline**: {len(hits)} notes scanned\n"
+        f"**Queries**: {len(queries)} ({source_summary or 'none'})\n\n"
+        f"---\n\n"
+        f"{body_excerpt}"
+    )
+    pushgate.notify(notify_title, notify_desp)
+
     return 0
 
 
