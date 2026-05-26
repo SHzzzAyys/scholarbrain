@@ -68,7 +68,7 @@
 ### Todo for v0.2 Day 2-3
 
 - [x] Day 2: lib/arxiv.py add download_pdf(); lib/pubmed.py add pmid_to_pmc_pdf() + fetch_by_pmid(); new lib/pdf_load.py with unified entry.
-- [ ] Day 3: scripts/research/research_paper.py + commands/research-paper.md + vault template Research/Papers/.
+- [x] Day 3: scripts/research/research_paper.py + commands/research-paper.md + vault template Research/Papers/.
 - [ ] METHOD_TAGS_VOCAB: add 'qRT-PCR', 'Western blot', 'Bisulfite-seq' (surfaced on PMID 40830525); also add CS terms 'Transformer', 'self-attention', 'encoder-decoder' (surfaced on arxiv:1706.03762).
 - [x] Test with a real PDF (local file) once PDF parser layer is in.
 
@@ -111,3 +111,43 @@ Ran on arxiv:1706.03762 (truncated to 30k chars, fed under Toxo `_DOMAIN.md`):
 - 2521bee: zh-CN triggers
 - 4829592: research_deep academic routing
 - c30bbf0: lib/deepseek + pubmed + arxiv
+
+---
+
+## 2026-05-26 - v0.2.0 milestone (Day 3 complete)
+
+### What landed
+
+- `scripts/research/research_paper.py` (340 lines): main entry for /research-paper.
+  - 3-phase pipeline: load via pdf_load -> extract via paper_extract -> vault write.
+  - Filename convention: `Research/Papers/<YYYY-MM-DD>__<author-year>__<title-slug>.md`
+  - Lastname extraction handles PubMed "Zheng XN" and Western "John Smith" formats.
+  - YAML frontmatter with 4 controlled-vocab fields for cross-paper comparison +
+    3 user-curation fields (user_relevance, research_priority, read_status).
+  - Best-effort PushGate notification after vault write.
+  - UTF-8 stdout/stderr hardening (matches research_deep.py pattern).
+- `commands/research-paper.md`: command doc with both EN and zh-CN triggers.
+
+### Real-world verification (Day 3.5, 2 cases)
+
+| Case | Result |
+|---|---|
+| `pmid:40830525` (Toxo m5C, abstract fallback) | saved `2026-05-26__zheng-2025__cross-lineage-5-methylcytosine-methylome-profiling.md`. model_organism=`Toxoplasma gondii` (domain hit), method_tags=`['RNA-seq', 'other']`, novelty_type=`数据创新`, position_in_field=`开创`. Used domain-aware terminology (速殖子, 基因型). |
+| `arxiv:1706.03762` (Attention Is All You Need, full PDF) | saved `2026-05-26__vaswani-2017__attention-is-all-you-need.md`. model_organism=`in silico` (cross-domain LLM correctly rejected biological vocab), method_tags=`['other']`, novelty_type=`方法学创新`, position_in_field=`开创`. 3 key_steps with full goal/approach/technique, BLEU 28.4 vs 26.03 quantitative evidence. |
+
+### v0.2.0 milestone definition met
+
+- [x] paper_extract.py with 4 new schema fields + controlled vocabs
+- [x] _DOMAIN.md override mechanism (verified does not pollute cross-domain papers)
+- [x] PDF fetch layer (arXiv + PMC OA + local + abstract fallback)
+- [x] /research-paper command + zh-CN triggers
+- [x] 2 real cases end-to-end (1 Toxo, 1 CS) producing high-quality vault notes
+
+### Deferred to v0.2.1 / v0.4 backlog
+
+- METHOD_TAGS_VOCAB expansion: MeRIP-Seq, qRT-PCR, Western blot, Bisulfite-seq, BLASTP, GO/KEGG, Transformer, self-attention, multi-head attention (surfaced on real test cases)
+- Language consistency: position_in_field/novelty_type emit Chinese ("开创"), result_direction emits English ("positive"). Pick one.
+- lib/semantic_scholar.py (v0.2 Day 1 task 1.4, deferred per spec section 6)
+- DOI resolution via Unpaywall (v0.4)
+- MinerU/Docling PDF parser upgrade (v0.4)
+- cassette/VCR fixtures for real API tests (v0.5)
