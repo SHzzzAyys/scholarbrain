@@ -1,7 +1,8 @@
 ---
-description: Vault-first deep research — scans vault, identifies gaps, fills via Perplexity + Grok, synthesizes a delta, then propagates updates across people/projects/ideas via /obsidian-save
+description: Vault-first deep research — scans vault, identifies gaps via DeepSeek, fills via Perplexity/PubMed/arXiv/Grok, synthesizes a delta via DeepSeek reasoner, then propagates updates across people/projects/ideas via /obsidian-save
 category: research
 triggers_en: ["deep research", "thorough research", "vault-first research", "research gaps"]
+triggers_zh: ["深度调研", "深入研究", "做综述", "文献综述", "全面研究", "深挖"]
 ---
 
 Use the obsidian-second-brain skill. Execute `/research-deep [topic]`:
@@ -15,11 +16,11 @@ Use the obsidian-second-brain skill. Execute `/research-deep [topic]`:
 
 3. The script runs a 4-phase pipeline:
    - **Phase 1** — vault scan: finds existing notes mentioning the topic (the baseline).
-   - **Phase 2** — gap analysis: Perplexity sonar-pro identifies what's missing/stale and emits 3-5 targeted queries (each tagged `web` or `x`).
-   - **Phase 3** — gap-fill: runs each query via Perplexity (web) or Grok+Live Search (X discourse).
-   - **Phase 4** — synthesis: Perplexity sonar-deep-research produces a delta report (what's new, what's confirmed, contradictions, recommended vault updates, open questions).
+   - **Phase 2** — gap analysis: DeepSeek (deepseek-chat) identifies what's missing/stale and emits 3-5 targeted queries (each tagged `web`, `pubmed`, `arxiv`, or `x`).
+   - **Phase 3** — gap-fill: routes each query by source — Perplexity (web), NCBI E-utilities (pubmed), arXiv Atom API (arxiv), or Grok+Live Search (x).
+   - **Phase 4** — synthesis: DeepSeek reasoner produces a delta report (what's new, what's confirmed, contradictions, recommended vault updates, open questions).
 
-   Show the synthesis body to the user verbatim.
+   Show the synthesis body to the user verbatim. The GAP_PROMPT auto-detects language: Chinese topics produce Chinese output, English topics produce English.
 
 4. **Save behavior: saves AND propagates.**
    - The script writes the synthesis to `Research/Deep/YYYY-MM-DD — <slug>.md` automatically (AI-first format).
@@ -37,9 +38,12 @@ Use the obsidian-second-brain skill. Execute `/research-deep [topic]`:
 
 7. Plain English triggers: "do deep research on [topic]", "research properly [topic]", "vault-aware research on [topic]", "research and update the vault on [topic]".
 
+   中文触发: "深度调研 [topic]"、"深入研究 [topic]"、"做综述 [topic]"、"文献综述 [topic]"、"全面研究 [topic]"、"深挖 [topic]"。
+   学术 topic 由 Phase 2 的 GAP_PROMPT 自动路由到 pubmed/arxiv backend（不需要用户指定 `--backend`）。
+
 8. If any phase fails (e.g. Grok unavailable), the script continues with what it has and flags the gap in the synthesis. Surface partial results — don't silently fail. The graceful degradation rule: a partial synthesis is better than no synthesis.
 
-9. Cost note: this command makes multiple API calls (Perplexity + Grok). Typical run: $0.20-$0.80 depending on topic depth and gap count. The script logs Grok calls to the usage log automatically.
+9. Cost note: this command makes multiple API calls (DeepSeek for Phase 2/4 + Perplexity/Grok/PubMed/arXiv for Phase 3). Typical run: $0.05-$0.30 (DeepSeek is ~10× cheaper than Perplexity sonar-deep-research; PubMed/arXiv are free). The script logs Grok calls to the usage log automatically.
 
 ---
 
