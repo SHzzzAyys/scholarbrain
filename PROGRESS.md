@@ -226,3 +226,58 @@ INDEX.md (Obsidian dataview queries) shipped to `D:/ToxoVault/Research/Papers/IN
 - 2521bee: zh-CN triggers
 - 4829592: research_deep academic routing
 - c30bbf0: lib/deepseek + pubmed + arxiv
+
+---
+
+## 2026-05-27 - v0.2.2 batch verification (all 12 cards re-extracted)
+
+### Test results vs v0.2.0 baseline
+
+| Test | v0.2.0 baseline | v0.2.2 result | Verdict |
+|---|---|---|---|
+| novelty_type English | 1/12 (8%) | **12/12 (100%)** | PASS |
+| position_in_field English | 1/12 (8%) | **12/12 (100%)** | PASS |
+| result_direction diversity | 12/12 positive | **7 positive / 5 mixed** | calibration works |
+| method_tags no Chinese leak | 1 card leaked | **0 cards** | PASS |
+| vocab coverage ("other") | 25% of cards | **0% (0/64 uses)** | vocab sufficient |
+
+64 method_tag uses across 12 cards, 34 unique tags — all in METHOD_TAGS_VOCAB.
+
+### 5 papers that became 'mixed' (was 0 before v0.2.1 calibration)
+
+- Alrubaye 2026 (single-cell Toxo sexual atlas): dataset + mixed + pioneering
+- Schwarz 2026 (Toxo SWI/SNF): conceptual + mixed + pioneering
+- Hagedorn 2026 (Leishmania macrophage proteomics)
+- Sádlová 2026 (Leishmania sand fly transporters)
+- Zheng XN 2025 (Toxo m5C cross-lineage)
+
+These are now filterable: `WHERE result_direction = "positive"` returns
+only the 7 high-confidence cards, not all 12.
+
+### Batch stats
+
+- 12/12 OK in 6m13s total (avg 31s/paper)
+- Longest: Zheng 2025 at 52s (DeepSeek reasoner mode for pmid: source)
+- Shortest: Vaswani 2017 at 22s (arxiv: cached, English-only paper)
+- Card #3 (MIC11, 86k chars PDF): 28s with v0.2.1 auto-truncation retry working
+
+### Final cumulative state
+
+14 fork commits on main:
+- 9ee4f55: v0.2.2 retrospective
+- f73b2e4: v0.2.2 vocab +9 + English-only
+- c7c046e: merge feat/deepseek-pubmed-arxiv
+- e21e5b4: multi-channel notify fallback
+- 552ba9a: semantic_scholar.py + vocab English
+- 2adb5bb: v0.2.1 truncation retry + result_direction calibration
+- a78d814: vocab 31->50
+- 149d854: /research-paper command (v0.2.0)
+- bb61d66: pdf fetch layer
+- cad2128: paper_extract.py (v0.2 Day 1)
+- 6af7eb4: pushgate webhook
+- ab9bc1c: windows utf-8 + proxy (v0.1.0)
+- 2521bee: zh-CN triggers
+- 4829592: research_deep academic routing
+- c30bbf0: lib/deepseek + pubmed + arxiv
+
+Vault: 12 v0.2.2-compliant cards in D:/ToxoVault/Research/Papers/ + INDEX.md
