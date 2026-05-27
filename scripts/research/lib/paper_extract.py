@@ -55,24 +55,25 @@ POSITION_VOCAB: list[str] = [
 METHOD_TAGS_VOCAB = [
     # Genome perturbation
     "CRISPR-Cas9", "CRISPR-screen", "RNAi", "AID", "DiCre", "Tet-on/off",
-    "knockout", "knockdown",
-    # Sequencing (bulk + single-cell)
+    "knockout", "knockdown", "bar-seq",
+    # Sequencing (bulk + single-cell + epigenetic)
     "RNA-seq", "scRNA-seq", "ChIP-seq", "ATAC-seq", "Ribo-seq", "CUT&RUN",
     "Bisulfite-seq", "MeRIP-Seq", "m6A-seq", "m5C-seq",
+    "whole-genome sequencing",
     # Protein-protein / RNA interaction
-    "BioID/TurboID", "co-IP", "Y2H", "pull-down", "CLIP-seq",
+    "BioID/TurboID", "co-IP", "IP-MS", "Y2H", "pull-down", "CLIP-seq",
     # Structural
     "X-ray crystallography", "cryo-EM", "AlphaFold",
     # Imaging
-    "live-cell imaging", "super-resolution", "EM", "immunofluorescence",
+    "live-cell imaging", "super-resolution", "U-ExM", "EM", "immunofluorescence",
     # Profiling
-    "flow cytometry", "mass spec", "metabolomics", "lipidomics", "proteomics",
+    "flow cytometry", "FACS", "mass spec", "metabolomics", "lipidomics", "proteomics",
     # Basic molecular biology (surfaced as common gaps in real extraction)
     "qRT-PCR", "Western blot", "Northern blot", "ELISA",
     # In vivo / in vitro models
     "mouse infection", "organoid culture", "in vitro infection",
     # Computational / bioinformatics
-    "computational modeling", "phylogenetics", "GWAS",
+    "computational modeling", "phylogenetics", "GWAS", "population structure inference",
     "BLAST/BLASTP", "GO/KEGG enrichment", "differential expression analysis",
     # ML / CS (for non-bio papers using the same controlled vocab)
     "Transformer", "self-attention", "neural network", "diffusion model",
@@ -353,7 +354,7 @@ TASK_PROMPT = """请从下面的论文文本中,按六模块结构化提取信�
       }}
     ],
     "notable_methods": ["新颖或非常规的方法及用途(自由文本)"],
-    "method_tags": ["受控词表(见下),从论文实际用到的方法中选 2-6 个"]
+    "method_tags": ["受控词表(见下),从论文实际用到的方法中选 2-6 个,严格英文原词不翻译"]
   }},
 
   "main_results": {{
@@ -406,7 +407,14 @@ TASK_PROMPT = """请从下面的论文文本中,按六模块结构化提取信�
 
 ## method_tags (多选,2-6个)
 {method_tags_vocab}
-原文实际涉及哪些方法就选哪些;不在表内的归 "other"。
+
+**强制约束**:
+1. **必须严格英文,严禁翻译成中文**(即使其他字段输出中文,method_tags 也必须英文)。
+   错例: `["免疫荧光", "in vivo感染"]` -> 应输出 `["immunofluorescence", "mouse infection"]`
+2. **严格匹配词表大小写**: `CRISPR-Cas9` 不能写成 `CRISPR/Cas9` 或 `crispr-cas9`
+3. 不在词表内归 "other"——不要自创新词。常见易遗漏方法已纳入词表: IP-MS / FACS / U-ExM /
+   bar-seq / whole-genome sequencing / population structure inference, 选前先看清词表
+4. flow cytometry 是大类, 论文明确说 FACS 时用 "FACS", 否则用 "flow cytometry"
 
 ## result_direction (单选)
 
