@@ -38,6 +38,20 @@ MODEL_ORGANISM_VOCAB = [
 RESULT_DIRECTION_VOCAB = ["positive", "negative", "mixed", "null"]
 # null = no significant effect (distinct from negative = clear opposite evidence)
 
+NOVELTY_TYPE_VOCAB: list[str] = [
+    "conceptual",      # 概念创新：提出新理论/框架/模型
+    "methodological",  # 方法学创新：新技术/新实验方法
+    "dataset",         # 数据创新：新数据集/新测量/新组学层
+    "incremental",     # 增量改进：现有方法的参数优化或规模扩展
+]
+
+POSITION_VOCAB: list[str] = [
+    "pioneering",   # 开创：领域内首次报道
+    "follow-up",    # 跟进：在已有发现上延伸
+    "corrective",   # 修正：推翻或更正已有结论
+    "integrative",  # 整合：综合多条证据线
+]
+
 METHOD_TAGS_VOCAB = [
     # Genome perturbation
     "CRISPR-Cas9", "CRISPR-screen", "RNAi", "AID", "DiCre", "Tet-on/off",
@@ -358,7 +372,7 @@ TASK_PROMPT = """请从下面的论文文本中,按六模块结构化提取信�
   "innovations": {{
     "claimed_novelty": "作者明确声称的创新",
     "actual_novelty": {{
-      "type": "方法学创新 / 概念创新 / 数据创新 / 增量贡献(四选一)",
+      "type": "one of: conceptual（概念创新）/ methodological（方法学创新）/ dataset（数据创新）/ incremental（增量改进）",
       "essence": "真正新的东西是什么(具体到分子/通路/方法)",
       "honest_assessment": "对照领域现状,这个新颖性的真实分量。诚实评判"
     }}
@@ -377,7 +391,7 @@ TASK_PROMPT = """请从下面的论文文本中,按六模块结构化提取信�
         "key_difference": "与本文的关键差异"
       }}
     ],
-    "position_in_field": "开创 / 跟进 / 修正 / 整合"
+    "position_in_field": "one of: pioneering（开创）/ follow-up（跟进）/ corrective（修正）/ integrative（整合）"
   }},
 
   "_missing": ["原文未提供的字段路径,如 ['research_purpose.significance']"]
@@ -499,5 +513,24 @@ def extract(
         result._raw_json = raw_output
         result._missing = ["JSON_PARSE_FAILED"]
         return result
+
+    # Validate result_direction
+    mr = parsed.setdefault("main_results", {})
+    raw_direction = mr.get("result_direction", "positive")
+    if raw_direction not in RESULT_DIRECTION_VOCAB:
+        mr["result_direction"] = "positive"
+
+    # Validate novelty_type
+    inn = parsed.setdefault("innovations", {})
+    an = inn.setdefault("actual_novelty", {})
+    raw_novelty = an.get("type", "incremental")
+    if raw_novelty not in NOVELTY_TYPE_VOCAB:
+        an["type"] = "incremental"
+
+    # Validate position_in_field
+    rl = parsed.setdefault("relation_to_literature", {})
+    raw_position = rl.get("position_in_field", "follow-up")
+    if raw_position not in POSITION_VOCAB:
+        rl["position_in_field"] = "follow-up"
 
     return ExtractionResult.from_dict(parsed)
