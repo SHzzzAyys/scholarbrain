@@ -12,6 +12,12 @@ dependencies = [
     "google-genai>=2.3.0",
 ]
 
+# Fork-only optional extras. Install with:
+#   uv sync --extra pdf       (for /research-paper PDF parsing)
+#   uv sync --all-extras      (install everything)
+[project.optional-dependencies]
+pdf = ["pymupdf>=1.24.0"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

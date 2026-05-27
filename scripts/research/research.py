@@ -7,8 +7,9 @@ Default behavior: print to chat AND save AI-first note to Research/Web/.
 """
 
 import sys
+import argparse
 from datetime import datetime
-from .lib import perplexity, vault
+from .lib import arxiv, perplexity, pubmed, vault
 
 PROMPT_TEMPLATE = """You are a research analyst. Topic: "{topic}"
 
@@ -52,17 +53,39 @@ Rules:
 """
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) < 2 or not argv[1].strip():
-        print("Usage: /research <topic>", file=sys.stderr)
-        return 2
+BACKEND_LABELS = {
+    "perplexity": "Perplexity Sonar",
+    "pubmed": "PubMed",
+    "arxiv": "arXiv",
+}
 
-    topic = " ".join(argv[1:]).strip()
-    prompt = PROMPT_TEMPLATE.format(topic=topic)
-    print(f"[/research] Researching '{topic}' via Perplexity Sonar...\n", file=sys.stderr)
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="/research")
+    parser.add_argument("topic", nargs="+", help="research topic")
+    parser.add_argument(
+        "--backend",
+        choices=["perplexity", "pubmed", "arxiv"],
+        default="perplexity",
+        help="research backend (default: perplexity)",
+    )
+    parser.add_argument("--max-results", type=int, default=10)
+    args = parser.parse_args(argv[1:])
+
+    topic = " ".join(args.topic).strip()
+    backend_label = BACKEND_LABELS[args.backend]
+    print(f"[/research] Researching '{topic}' via {backend_label}...\n", file=sys.stderr)
 
     try:
-        result = perplexity.call(prompt, deep=False, max_tokens=4500)
+        if args.backend == "perplexity":
+            prompt = PROMPT_TEMPLATE.format(topic=topic)
+            result = perplexity.call(prompt, deep=False, max_tokens=4500)
+        elif args.backend == "pubmed":
+            result = pubmed.call(topic, max_results=args.max_results)
+        elif args.backend == "arxiv":
+            result = arxiv.call(topic, max_results=args.max_results)
+        else:
+            raise ValueError(f"unknown backend: {args.backend}")
     except SystemExit:
         raise
     except Exception as e:
@@ -85,12 +108,20 @@ def main(argv: list[str]) -> int:
 
     # AI-first note save
     now = datetime.now()
-    preamble = (
-        f"For future Claude: This note is a Perplexity Sonar deep dossier on \"{topic}\" "
-        f"performed on {now.strftime('%Y-%m-%d %H:%M')}. It captures key facts with recency markers, "
-        f"timeline, key players, contrarian views, and open questions. "
-        f"Every claim was sourced at the time of research — verify recency markers before relying on individual facts."
-    )
+    if args.backend == "perplexity":
+        preamble = (
+            f"For future Claude: This note is a Perplexity Sonar deep dossier on \"{topic}\" "
+            f"performed on {now.strftime('%Y-%m-%d %H:%M')}. It captures key facts with recency markers, "
+            f"timeline, key players, contrarian views, and open questions. "
+            f"Every claim was sourced at the time of research — verify recency markers before relying on individual facts."
+        )
+    else:
+        preamble = (
+            f"For future Claude: This note is a {backend_label} research result on \"{topic}\" "
+            f"performed on {now.strftime('%Y-%m-%d %H:%M')} via /research --backend {args.backend}. "
+            f"It captures returned records, abstracts or summaries where available, and source links. "
+            f"Verify source metadata and recency before relying on individual facts."
+        )
     sources_list = []
     for c in citations:
         if isinstance(c, dict):
@@ -105,7 +136,7 @@ def main(argv: list[str]) -> int:
         "time": now.strftime("%H:%M"),
         "type": "research",
         "topic": topic,
-        "tags": ["research", "perplexity", _slug_tag(topic)],
+        "tags": ["research", args.backend, _slug_tag(topic)],
         "model": result["model"],
         "sources": sources_list,
         "ai-first": True,
@@ -121,7 +152,7 @@ def main(argv: list[str]) -> int:
     )
     path = vault.write_note("research", topic, fm, note_body)
     vault.print_save_links(path)
-    vault.append_to_log(f"research on \"{topic}\" — saved to {path.name}")
+    vault.append_to_log(f"research on \"{topic}\" via {args.backend} — saved to {path.name}")
     return 0
 
 

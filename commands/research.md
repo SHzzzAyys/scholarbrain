@@ -1,7 +1,8 @@
 ---
-description: Web research with citations via Perplexity Sonar — deep dossier with summary, facts, timeline, players, contrarian views, open questions
+description: Web research with citations via Perplexity Sonar (or PubMed / arXiv academic backends) — deep dossier with summary, facts, timeline, players, contrarian views, open questions
 category: research
 triggers_en: ["research this", "look up", "find information about", "perplexity research"]
+triggers_zh: ["调研", "研究一下", "查一下", "做调研", "找资料"]
 ---
 
 Use the obsidian-second-brain skill. Execute `/research [topic]`:
@@ -10,8 +11,12 @@ Use the obsidian-second-brain skill. Execute `/research [topic]`:
 
 2. Run the Python command from the repo root (`~/Projects/personal/obsidian-second-brain/`):
    ```bash
-   uv run -m scripts.research.research "<topic>"
+   uv run -m scripts.research.research "<topic>" [--backend perplexity|pubmed|arxiv] [--max-results N]
    ```
+   - `--backend perplexity` (default): general web research with citations
+   - `--backend pubmed`: biomedical/clinical literature via NCBI E-utilities
+   - `--backend arxiv`: CS/physics/math preprints via arXiv Atom API
+   Route by topic domain: pubmed for medical/biological topics, arxiv for ML/physics/math, perplexity for everything else.
 
 3. The script returns a deep dossier (Summary, Key Facts with recency markers, Timeline, Key Players, Contrarian Views, Further Reading, Open Questions, Sources). Show the full output to the user verbatim.
 
@@ -20,6 +25,9 @@ Use the obsidian-second-brain skill. Execute `/research [topic]`:
 5. After the dossier prints, surface the saved file path on stderr cleanly to the user.
 
 6. Plain English triggers: "research [topic]", "look up [topic]", "deep research on [topic]" (note: "do deep research" or "research deep" should route to `/research-deep` instead — the chained version), "find me info on [topic]".
+
+   中文触发: "调研 [topic]"、"研究一下 [topic]"、"查一下 [topic]"、"做调研 [topic]"、"找资料 [topic]"。
+   学术领域触发自动选 backend: "查文献 [医学/生物 topic]" → `--backend pubmed`；"查预印本 [CS/物理 topic]" → `--backend arxiv`；其他默认 `--backend perplexity`。
 
 7. If the user wants ALSO X discourse on the same topic, suggest running `/x-pulse [topic]` after this. If they want full vault-aware synthesis with propagation, suggest `/research-deep [topic]`.
 
